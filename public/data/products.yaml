@@ -1,7 +1,7 @@
 - id: p-001
   name: Sockets and Switches
   path: /images/01.jpg
-  price: '500'
+  price: '100'
   Description: |
     Rocker Switch (Brass Head) 6a, 6a two way, 16a Bell Pu
 - id: p-002
