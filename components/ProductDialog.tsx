@@ -159,7 +159,7 @@ export default function ProductDialog({
         try {
             const token = await getIdToken();
             const response = await fetch("/api/delete-product", {
-                method: "DELETE",
+                method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -167,9 +167,22 @@ export default function ProductDialog({
                 body: JSON.stringify({ id: product.id }),
             });
 
+            const contentType = response.headers.get("content-type") || "";
+            let data: any = null;
+            if (contentType.includes("application/json")) {
+                data = await response.json();
+            }
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to delete product.");
+                if (data?.error) {
+                    throw new Error(data.error);
+                }
+                if (response.status === 404) {
+                    throw new Error(
+                        "API endpoint not found (404). Vercel may still be deploying the latest update — please wait 1-2 minutes, refresh the page, and try again."
+                    );
+                }
+                throw new Error(`Server returned error (${response.status}): ${response.statusText}`);
             }
 
             onProductDeleted?.(product.id);

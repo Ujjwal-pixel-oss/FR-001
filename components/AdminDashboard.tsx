@@ -233,7 +233,7 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
         try {
             const token = await getIdToken();
             const res = await fetch("/api/delete-product", {
-                method: "DELETE",
+                method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -241,9 +241,22 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
                 body: JSON.stringify({ id: productToDelete.id }),
             });
 
-            const data = await res.json();
+            const contentType = res.headers.get("content-type") || "";
+            let data: any = null;
+            if (contentType.includes("application/json")) {
+                data = await res.json();
+            }
+
             if (!res.ok) {
-                throw new Error(data.error || "Failed to delete product.");
+                if (data?.error) {
+                    throw new Error(data.error);
+                }
+                if (res.status === 404) {
+                    throw new Error(
+                        "API endpoint not found (404). Vercel may still be deploying the latest update — please wait 1-2 minutes, refresh the page, and try again."
+                    );
+                }
+                throw new Error(`Server returned error (${res.status}): ${res.statusText}`);
             }
 
             setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));

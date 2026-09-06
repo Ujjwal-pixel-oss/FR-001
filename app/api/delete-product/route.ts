@@ -7,7 +7,7 @@ import { db } from "@/lib/firebaseAdmin";
 
 const FILE_PATH = path.join(process.cwd(), "public/data/products.yaml");
 
-export async function DELETE(req: Request) {
+async function handleDelete(req: Request) {
     try {
         // 1. Security Check
         const decodedToken = await verifyFirebaseRequest(req);
@@ -19,8 +19,13 @@ export async function DELETE(req: Request) {
         }
 
         // 2. Extract Product ID
-        const body = await req.json();
-        const { id } = body;
+        let id = "";
+        try {
+            const body = await req.json();
+            id = body?.id || "";
+        } catch (e) {
+            // Body parsing fallback
+        }
 
         if (!id) {
             return NextResponse.json(
@@ -32,18 +37,26 @@ export async function DELETE(req: Request) {
         let deleted = false;
         let deletedProductName = "";
 
-        // 3. Remove from public/data/products.yaml
-        if (fs.existsSync(FILE_PATH)) {
-            const fileContents = fs.readFileSync(FILE_PATH, "utf8");
-            const products = (yaml.load(fileContents) || []) as any[];
+        // 3. Remove from public/data/products.yaml (safe in serverless read-only fs)
+        try {
+            if (fs.existsSync(FILE_PATH)) {
+                const fileContents = fs.readFileSync(FILE_PATH, "utf8");
+                const products = (yaml.load(fileContents) || []) as any[];
 
-            const targetProduct = products.find((p) => p.id === id);
-            if (targetProduct) {
-                deleted = true;
-                deletedProductName = targetProduct.name;
-                const remainingProducts = products.filter((p) => p.id !== id);
-                fs.writeFileSync(FILE_PATH, yaml.dump(remainingProducts), "utf8");
+                const targetProduct = products.find((p) => p.id === id);
+                if (targetProduct) {
+                    deleted = true;
+                    deletedProductName = targetProduct.name;
+                    const remainingProducts = products.filter((p) => p.id !== id);
+                    try {
+                        fs.writeFileSync(FILE_PATH, yaml.dump(remainingProducts), "utf8");
+                    } catch (fsWriteErr) {
+                        console.warn("Could not write products.yaml (read-only environment):", fsWriteErr);
+                    }
+                }
             }
+        } catch (yamlErr) {
+            console.warn("YAML product removal skipped or failed:", yamlErr);
         }
 
         // 4. Remove from Firestore "products" collection if exists
@@ -60,7 +73,7 @@ export async function DELETE(req: Request) {
 
         if (!deleted) {
             return NextResponse.json(
-                { error: `Product with ID '${id}' was not found.` },
+                { error: `Product with ID '${id}' was not found in catalog or database.` },
                 { status: 404 }
             );
         }
@@ -77,4 +90,12 @@ export async function DELETE(req: Request) {
             { status: 500 }
         );
     }
+}
+
+export async function POST(req: Request) {
+    return handleDelete(req);
+}
+
+export async function DELETE(req: Request) {
+    return handleDelete(req);
 }
