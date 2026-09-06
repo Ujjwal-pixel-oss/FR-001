@@ -1,6 +1,7 @@
 "use client";
 
 import { useFirebaseAuth } from "@/lib/firebase-auth";
+import { isAdmin } from "@/lib/admin-whitelist";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
@@ -287,8 +288,8 @@ export default function ProductDialog({
                         </DialogTitle>
                     </div>
 
-                    {/* Admin Pencil Edit Icon */}
-                    {mode === "details" && user && (
+                    {/* Admin Pencil Edit Icon - ONLY for Whitelisted Admins */}
+                    {mode === "details" && isAdmin(user?.email) && (
                         <Button
                             variant="ghost"
                             size="icon"

@@ -17,8 +17,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { isAdmin } from "@/lib/admin-whitelist";
 import {
     ShieldCheck,
+    ShieldAlert,
     LogOut,
     Plus,
     Search,
@@ -417,7 +419,59 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
         );
     }
 
-    // 3. Authenticated Admin Dashboard
+    // 3. Unauthorized State -> User is logged in as a customer, but not on Admin Whitelist
+    if (!isAdmin(user.email)) {
+        return (
+            <div className="flex min-h-screen w-full flex-col items-center justify-center p-4 bg-black text-white">
+                <div className="w-full max-w-md flex flex-col gap-6">
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors w-fit"
+                    >
+                        <ArrowLeft className="w-4 h-4" /> Back to Portals
+                    </Link>
+
+                    <div className="flex flex-col gap-6 p-8 border border-red-900/60 rounded-2xl bg-zinc-950/90 shadow-2xl text-center">
+                        <div className="mx-auto p-4 bg-red-500/10 border border-red-500/20 rounded-full w-fit">
+                            <ShieldAlert className="w-10 h-10 text-red-500" />
+                        </div>
+
+                        <div className="space-y-2">
+                            <h1 className="text-2xl font-bold font-anton text-red-400 tracking-wide uppercase">
+                                Access Denied
+                            </h1>
+                            <p className="text-xs text-zinc-400 leading-relaxed">
+                                This account is signed in as a customer and does not have store administrator privileges.
+                            </p>
+                        </div>
+
+                        <div className="p-3 bg-zinc-900 rounded-xl border border-zinc-800 text-xs text-zinc-300">
+                            <span className="text-zinc-500 block text-[11px] uppercase tracking-wider mb-1">Signed In As:</span>
+                            <span className="font-mono font-semibold text-white break-all">{user.email}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-2.5 pt-2">
+                            <Button
+                                onClick={() => router.push("/store")}
+                                className="w-full bg-white text-black hover:bg-zinc-200 font-semibold text-xs py-5"
+                            >
+                                Return to Store Catalog
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => signOutUser()}
+                                className="w-full border-zinc-800 hover:bg-zinc-900 text-zinc-400 hover:text-white text-xs py-5 gap-2"
+                            >
+                                <LogOut className="w-3.5 h-3.5" /> Sign Out & Switch Account
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // 4. Authenticated Admin Dashboard
     return (
         <div className="min-h-screen bg-black text-white flex flex-col">
             {/* Top Navigation Bar */}

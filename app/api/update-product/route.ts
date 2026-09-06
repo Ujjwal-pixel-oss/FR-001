@@ -4,17 +4,18 @@ import path from "node:path";
 import yaml from "js-yaml";
 import { verifyFirebaseRequest } from "@/lib/firebase-admin";
 import { db } from "@/lib/firebaseAdmin";
+import { isAdmin } from "@/lib/admin-whitelist";
 
 const FILE_PATH = path.join(process.cwd(), "public/data/products.yaml");
 
 export async function POST(req: Request) {
     try {
-        // 1. Security Check
+        // 1. Security Check: Must be authenticated and on Admin Whitelist
         const decodedToken = await verifyFirebaseRequest(req);
-        if (!decodedToken) {
+        if (!decodedToken || !isAdmin(decodedToken.email)) {
             return NextResponse.json(
-                { error: "Unauthorized: You must be logged in to update products." },
-                { status: 401 }
+                { error: "Unauthorized: Admin privileges required." },
+                { status: 403 }
             );
         }
 

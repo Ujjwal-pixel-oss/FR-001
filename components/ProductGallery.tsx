@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useFirebaseAuth } from "@/lib/firebase-auth";
+import { isAdmin } from "@/lib/admin-whitelist";
 import { Product } from "@/lib/products";
 import ProductCard from "./ProductCard";
 import ProductDialog from "./ProductDialog";
@@ -50,8 +51,8 @@ export default function ProductGallery({ products }: ProductGalleryProps) {
         {/* Controls */}
         <div className="flex items-center gap-4">
             
-            {/* The secure Add Product button (Hidden from public) */}
-            {user && (
+            {/* The secure Add Product button (Only for Whitelisted Admins) */}
+            {isAdmin(user?.email) && (
                 <Button 
                     onClick={() => setAddDialogOpen(true)}
                     className="bg-green-600 hover:bg-green-700 text-white rounded-none font-bold tracking-wide flex items-center gap-2"
