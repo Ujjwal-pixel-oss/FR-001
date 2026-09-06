@@ -1,126 +1,93 @@
 import { NextResponse } from "next/server";
-import { Octokit } from "octokit";
+import fs from "node:fs";
+import path from "node:path";
 import yaml from "js-yaml";
+import { verifyFirebaseRequest } from "@/lib/firebase-admin";
+import { db } from "@/lib/firebaseAdmin";
 
-// Initialize Octokit with the GitHub Personal Access Token
-const octokit = new Octokit({
-  auth: process.env.ACCESS_TOKEN,
-});
+const FILE_PATH = path.join(process.cwd(), "public/data/products.yaml");
 
-const REPO_OWNER = "ujjwal-pixel-oss";
-const REPO_NAME = "FR-001";
-const FILE_PATH = "public/data/products.yaml";
-
-export async function POST(request: Request) {
-  try {
-    if (!process.env.ACCESS_TOKEN) {
-      console.error("Missing ACCESS_TOKEN environment variable");
-      return NextResponse.json(
-        { error: "Server configuration error: Missing GitHub Access Token" },
-        { status: 500 }
-      );
-    }
-
-    const { id, name, price, description } = await request.json();
-
-    if (!id || !name) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
-    // 1. Get the current file content (SHA is needed for update)
-    let fileData;
+export async function POST(req: Request) {
     try {
-      const response = await octokit.rest.repos.getContent({
-        owner: REPO_OWNER,
-        repo: REPO_NAME,
-        path: FILE_PATH,
-      });
-      fileData = response.data;
-    } catch (e: any) {
-      console.error("Error fetching file:", e);
-      return NextResponse.json(
-        { error: `Failed to fetch products.yaml: ${e.message}` },
-        { status: 500 }
-      );
+        // 1. Security Check
+        const decodedToken = await verifyFirebaseRequest(req);
+        if (!decodedToken) {
+            return NextResponse.json(
+                { error: "Unauthorized: You must be logged in to update products." },
+                { status: 401 }
+            );
+        }
+
+        // 2. Read input
+        const body = await req.json();
+        const { id, name, price, description } = body;
+
+        if (!id || !name) {
+            return NextResponse.json(
+                { error: "Missing required fields: id and name are required." },
+                { status: 400 }
+            );
+        }
+
+        // 3. Update in local YAML file
+        let updated = false;
+        let updatedProduct: any = null;
+        if (fs.existsSync(FILE_PATH)) {
+            const fileContents = fs.readFileSync(FILE_PATH, "utf8");
+            const products = (yaml.load(fileContents) || []) as any[];
+
+            const newProducts = products.map((p) => {
+                if (p.id === id) {
+                    updated = true;
+                    updatedProduct = {
+                        ...p,
+                        name: name.trim(),
+                        price: price ? String(price).trim() : null,
+                        Description: description !== undefined ? String(description).trim() : p.Description,
+                    };
+                    return updatedProduct;
+                }
+                return p;
+            });
+
+            if (updated) {
+                fs.writeFileSync(FILE_PATH, yaml.dump(newProducts), "utf8");
+            }
+        }
+
+        // 4. Update in Firestore collection if document exists
+        try {
+            const productRef = db.collection("products").doc(id);
+            const doc = await productRef.get();
+            if (doc.exists) {
+                await productRef.update({
+                    name: name.trim(),
+                    price: price ? String(price).trim() : "",
+                    description: description !== undefined ? String(description).trim() : "",
+                    updatedAt: new Date().toISOString(),
+                });
+            }
+        } catch (dbErr) {
+            console.warn("Firestore update skipped or failed:", dbErr);
+        }
+
+        if (!updated && !updatedProduct) {
+            return NextResponse.json(
+                { error: `Product with ID '${id}' not found.` },
+                { status: 404 }
+            );
+        }
+
+        return NextResponse.json({
+            success: true,
+            message: "Product updated successfully!",
+            product: updatedProduct,
+        });
+    } catch (error: any) {
+        console.error("Error updating product:", error);
+        return NextResponse.json(
+            { error: error.message || "Failed to update product" },
+            { status: 500 }
+        );
     }
-
-    if (!fileData || Array.isArray(fileData) || !("content" in fileData)) {
-      return NextResponse.json(
-        { error: "Invalid file format or file not found" },
-        { status: 500 }
-      );
-    }
-
-    // Decode content
-    const content = Buffer.from(fileData.content, "base64").toString("utf8");
-    const products: any[] = yaml.load(content) as any[];
-
-    // 2. Update the specific product
-    const updatedProducts = products.map((p) => {
-      if (p.id === id) {
-        return {
-          ...p,
-          name,
-          price: price || null,
-          Description: description, // Note: YAML uses 'Description' with capital D based on file
-        };
-      }
-      return p;
-    });
-
-    // Convert back to YAML
-    const newYaml = yaml.dump(updatedProducts);
-    const newContentEncoded = Buffer.from(newYaml).toString("base64");
-
-    // 3. Create a new branch
-    const branchName = `update-product-${id}-${Date.now()}`;
-    
-    // Get main branch reference to branch off from
-    const { data: refData } = await octokit.rest.git.getRef({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      ref: "heads/main",
-    });
-
-    // Create the new branch
-    await octokit.rest.git.createRef({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      ref: `refs/heads/${branchName}`,
-      sha: refData.object.sha,
-    });
-
-    // 4. Commit the file to the new branch
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      path: FILE_PATH,
-      message: `Update product ${id}: ${name}`,
-      content: newContentEncoded,
-      branch: branchName,
-      sha: fileData.sha, // SHA of the file we are replacing
-    });
-
-    // 5. Create a Pull Request
-    const { data: prData } = await octokit.rest.pulls.create({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      title: `Update Product: ${name} (${id})`,
-      body: `Automated update request for product **${name}**.\n\n**Changes:**\n- Price: ${price}\n- Description: ${description}`,
-      head: branchName,
-      base: "main",
-    });
-
-    return NextResponse.json({ success: true, prUrl: prData.html_url });
-
-  } catch (error: any) {
-    console.error("Error updating product:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal Server Error" },
-      { status: 500 }
-    );
-  }
 }

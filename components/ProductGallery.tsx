@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useFirebaseAuth } from "@/lib/firebase-auth";
 import { Product } from "@/lib/products";
 import ProductCard from "./ProductCard";
 import ProductDialog from "./ProductDialog";
-import { LayoutGrid, List, Grid3X3, Filter } from "lucide-react";
+import AddProductDialog from "./AddProductDialog";
+import { LayoutGrid, List, Grid3X3, Filter, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -15,9 +17,14 @@ interface ProductGalleryProps {
 type ViewMode = "grid" | "list" | "gallery";
 
 export default function ProductGallery({ products }: ProductGalleryProps) {
+  const { user } = useFirebaseAuth();
+
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  
+  // State for our two different dialog popups
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -37,6 +44,17 @@ export default function ProductGallery({ products }: ProductGalleryProps) {
         
         {/* Controls */}
         <div className="flex items-center gap-4">
+            
+            {/* The secure Add Product button (Hidden from public) */}
+            {user && (
+                <Button 
+                    onClick={() => setAddDialogOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-none font-bold tracking-wide flex items-center gap-2"
+                >
+                    <Plus className="w-5 h-5" /> ADD PRODUCT
+                </Button>
+            )}
+
             <div className="flex items-center gap-1 bg-zinc-900/50 p-1 border border-white/10 rounded-none backdrop-blur-sm">
             <Button 
                 variant="ghost" 
@@ -86,10 +104,17 @@ export default function ProductGallery({ products }: ProductGalleryProps) {
         ))}
       </div>
 
+      {/* The form to edit an existing product */}
       <ProductDialog
         product={selectedProduct}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+      />
+
+      {/* The brand new form to add a product */}
+      <AddProductDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
       />
     </section>
   );

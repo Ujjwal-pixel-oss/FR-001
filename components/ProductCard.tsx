@@ -55,6 +55,16 @@ export default function ProductCard({
             />
         </div>
         <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                    COD AVAILABLE
+                </span>
+                {product.price && (
+                    <span className="text-sm font-bold font-anton text-emerald-400">
+                        {product.price.startsWith("₹") ? product.price : `₹${product.price}`}
+                    </span>
+                )}
+            </div>
             <h3 className="text-2xl font-bold text-white uppercase tracking-tight mb-2">{product.name}</h3>
             <p className="text-zinc-400 line-clamp-2 font-mono text-sm">{product.Description}</p>
         </div>
@@ -86,6 +96,7 @@ export default function ProductCard({
           alt={product.name}
           fill
           className="object-cover transition-transform duration-700 ease-out group-hover:scale-110 group-hover:grayscale-0 grayscale-[0.5]"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
       </div>
 
@@ -101,10 +112,17 @@ export default function ProductCard({
             <h3 className="text-white font-bold text-2xl uppercase tracking-tighter leading-none mb-2 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 delay-75">
             {product.name}
             </h3>
-            <p className="text-zinc-400 text-xs font-mono uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100">
-            View Details
+            <p className="text-emerald-400 text-xs font-mono uppercase tracking-wider font-semibold opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100 flex items-center gap-1">
+              <span>Order on COD</span> • <span>Details</span>
             </p>
         </div>
+      </div>
+
+      {/* COD Available Badge */}
+      <div className="absolute top-4 left-4 z-20">
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-950/80 text-emerald-400 border border-emerald-800/70 backdrop-blur-md shadow-md">
+          COD AVAILABLE
+        </span>
       </div>
 
       {/* Corner Accents */}

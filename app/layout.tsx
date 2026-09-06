@@ -5,22 +5,25 @@ import "@fontsource/manrope/700.css";
 import "@fontsource/anton";
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
+import { FirebaseAuthProvider } from "@/lib/firebase-auth";
 
 export const metadata: Metadata = {
-  title: "Jai Shree Balaji Screw House",
-  description: "Premium hardware solutions",
+    title: "Jai Shree Balaji Screw House",
+    description: "Premium hardware solutions",
 };
 
 export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en" className="dark">
-      <body className="antialiased bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground">
-        <SmoothScroll>{children}</SmoothScroll>
-      </body>
-    </html>
-  );
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <html lang="en">
+            <body>
+                <FirebaseAuthProvider>
+                    <SmoothScroll>{children}</SmoothScroll>
+                </FirebaseAuthProvider>
+            </body>
+        </html>
+    );
 }
