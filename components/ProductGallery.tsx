@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFirebaseAuth } from "@/lib/firebase-auth";
 import { Product } from "@/lib/products";
 import ProductCard from "./ProductCard";
@@ -19,8 +19,13 @@ type ViewMode = "grid" | "list" | "gallery";
 export default function ProductGallery({ products }: ProductGalleryProps) {
   const { user } = useFirebaseAuth();
 
+  const [productList, setProductList] = useState<Product[]>(products);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    setProductList(products);
+  }, [products]);
   
   // State for our two different dialog popups
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -94,7 +99,7 @@ export default function ProductGallery({ products }: ProductGalleryProps) {
           viewMode === "list" && "grid-cols-1 max-w-4xl mx-auto"
         )}
       >
-        {products.map((product) => (
+        {productList.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
@@ -109,6 +114,10 @@ export default function ProductGallery({ products }: ProductGalleryProps) {
         product={selectedProduct}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        onProductDeleted={(deletedId) => {
+          setProductList((prev) => prev.filter((p) => p.id !== deletedId));
+          setSelectedProduct(null);
+        }}
       />
 
       {/* The brand new form to add a product */}

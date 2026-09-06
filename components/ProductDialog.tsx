@@ -26,6 +26,7 @@ import {
     Package,
     AlertCircle,
     ShieldCheck,
+    Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ interface ProductDialogProps {
     product: Product | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onProductDeleted?: (id: string) => void;
 }
 
 type DialogMode = "details" | "ordering" | "editing" | "order_success";
@@ -44,14 +46,17 @@ export default function ProductDialog({
     product,
     open,
     onOpenChange,
+    onProductDeleted,
 }: ProductDialogProps) {
     const { user, getIdToken } = useFirebaseAuth();
 
     const [mode, setMode] = useState<DialogMode>("details");
 
-    // Product Edit State
+    // Product Edit & Delete State
     const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
     const [editSuccessMsg, setEditSuccessMsg] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const [editFormData, setEditFormData] = useState({
         name: "",
         price: "",
@@ -86,6 +91,7 @@ export default function ProductDialog({
             setMode("details");
             setOrderError("");
             setEditSuccessMsg("");
+            setConfirmDelete(false);
             setConfirmedOrder(null);
 
             // Pre-fill customer data if logged in
@@ -140,6 +146,42 @@ export default function ProductDialog({
             alert(`Error: ${error.message}`);
         } finally {
             setIsSubmittingEdit(false);
+        }
+    };
+
+    // Handle Admin Delete Product
+    const handleDeleteProduct = async () => {
+        if (!confirmDelete) {
+            setConfirmDelete(true);
+            return;
+        }
+        setIsDeleting(true);
+        try {
+            const token = await getIdToken();
+            const response = await fetch("/api/delete-product", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ id: product.id }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to delete product.");
+            }
+
+            onProductDeleted?.(product.id);
+            onOpenChange(false);
+            if (!onProductDeleted) {
+                window.location.reload();
+            }
+        } catch (error: any) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsDeleting(false);
+            setConfirmDelete(false);
         }
     };
 
@@ -591,7 +633,7 @@ export default function ProductDialog({
                                         </Button>
                                         <Button
                                             onClick={handleEditSubmit}
-                                            disabled={isSubmittingEdit}
+                                            disabled={isSubmittingEdit || isDeleting}
                                             className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700 font-bold"
                                         >
                                             {isSubmittingEdit ? (
@@ -602,6 +644,50 @@ export default function ProductDialog({
                                                 "Save Changes"
                                             )}
                                         </Button>
+                                    </div>
+
+                                    {/* Danger Zone: Delete Product */}
+                                    <div className="pt-4 border-t border-zinc-800/80">
+                                        <div className="flex items-center justify-between p-3 rounded-xl bg-red-950/20 border border-red-900/40">
+                                            <div>
+                                                <h5 className="text-xs font-bold text-red-400">Delete Product</h5>
+                                                <p className="text-[11px] text-zinc-400">Permanently remove from catalog</p>
+                                            </div>
+                                            {confirmDelete ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        disabled={isDeleting}
+                                                        onClick={() => setConfirmDelete(false)}
+                                                        className="text-zinc-400 hover:text-white text-xs h-8"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        disabled={isDeleting}
+                                                        onClick={handleDeleteProduct}
+                                                        className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-3 gap-1.5"
+                                                    >
+                                                        {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                                        Confirm Delete
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setConfirmDelete(true)}
+                                                    className="border-red-900/60 text-red-400 hover:bg-red-950/40 hover:text-red-300 text-xs h-8 px-3 gap-1.5"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 </>
                             )}

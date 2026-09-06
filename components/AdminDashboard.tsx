@@ -11,6 +11,13 @@ import { Input } from "@/components/ui/input";
 import ProductDialog from "@/components/ProductDialog";
 import AddProductDialog from "@/components/AddProductDialog";
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
     ShieldCheck,
     LogOut,
     Plus,
@@ -29,6 +36,7 @@ import {
     Calendar,
     Clock,
     Check,
+    Trash2,
 } from "lucide-react";
 
 function getFriendlyErrorMessage(error: any): string {
@@ -61,7 +69,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ initialProducts }: AdminDashboardProps) {
-    const { user, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOutUser, sendPasswordReset } = useFirebaseAuth();
+    const { user, loading, signInWithEmail, signUpWithEmail, signInWithGoogle, signOutUser, sendPasswordReset, getIdToken } = useFirebaseAuth();
     const router = useRouter();
 
     // Login Form State
@@ -82,6 +90,11 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+    // Product Deletion State
+    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
 
     // Orders State
     const [orders, setOrders] = useState<any[]>([]);
@@ -211,6 +224,35 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
     const handleEditProduct = (product: Product) => {
         setSelectedProduct(product);
         setEditDialogOpen(true);
+    };
+
+    const handleDeleteProduct = async () => {
+        if (!productToDelete) return;
+        setIsDeleting(true);
+        setDeleteError("");
+        try {
+            const token = await getIdToken();
+            const res = await fetch("/api/delete-product", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ id: productToDelete.id }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to delete product.");
+            }
+
+            setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+            setProductToDelete(null);
+        } catch (err: any) {
+            setDeleteError(err.message || "An error occurred while deleting the product.");
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     // 1. Loading State
@@ -566,14 +608,28 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
                                                 <span className="text-sm font-bold font-anton text-zinc-200">
                                                     {product.price ? `₹${product.price}` : "No price set"}
                                                 </span>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleEditProduct(product)}
-                                                    className="border-zinc-700 hover:bg-white/10 text-white text-xs gap-1.5 h-8"
-                                                >
-                                                    <Pencil className="w-3 h-3" /> Edit
-                                                </Button>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleEditProduct(product)}
+                                                        className="border-zinc-700 hover:bg-white/10 text-white text-xs gap-1.5 h-8"
+                                                    >
+                                                        <Pencil className="w-3 h-3" /> Edit
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => {
+                                                            setDeleteError("");
+                                                            setProductToDelete(product);
+                                                        }}
+                                                        className="text-zinc-500 hover:text-red-400 hover:bg-red-950/40 text-xs h-8 px-2"
+                                                        title={`Delete ${product.name}`}
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -781,6 +837,10 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
                 product={selectedProduct}
                 open={editDialogOpen}
                 onOpenChange={setEditDialogOpen}
+                onProductDeleted={(deletedId) => {
+                    setProducts((prev) => prev.filter((p) => p.id !== deletedId));
+                    setSelectedProduct(null);
+                }}
             />
 
             {/* Add Product Dialog */}
@@ -788,6 +848,71 @@ export default function AdminDashboard({ initialProducts }: AdminDashboardProps)
                 open={addDialogOpen}
                 onOpenChange={setAddDialogOpen}
             />
+
+            {/* Delete Product Confirmation Dialog */}
+            <Dialog
+                open={!!productToDelete}
+                onOpenChange={(open) => !open && !isDeleting && setProductToDelete(null)}
+            >
+                <DialogContent className="sm:max-w-md bg-zinc-950 border border-zinc-800 text-white">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-red-400 flex items-center gap-2">
+                            <Trash2 className="w-5 h-5 text-red-500" /> Confirm Product Deletion
+                        </DialogTitle>
+                        <DialogDescription className="text-zinc-400 text-sm">
+                            Are you sure you want to permanently delete{" "}
+                            <span className="text-white font-semibold">&ldquo;{productToDelete?.name}&rdquo;</span> (ID:{" "}
+                            <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded font-mono text-zinc-300">
+                                {productToDelete?.id}
+                            </code>
+                            )?
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {deleteError && (
+                        <div className="p-3 bg-red-950/40 border border-red-800/50 rounded-lg text-red-400 text-xs">
+                            {deleteError}
+                        </div>
+                    )}
+
+                    <div className="p-3 bg-zinc-900/80 border border-zinc-800/80 rounded-lg text-xs text-zinc-400 space-y-1">
+                        <p className="font-semibold text-zinc-300">This action will:</p>
+                        <ul className="list-disc list-inside space-y-0.5 text-zinc-400">
+                            <li>Remove the product from the catalog (<code className="text-zinc-300">products.yaml</code>)</li>
+                            <li>Delete the product document in Firebase Firestore</li>
+                            <li>Make it immediately unavailable for customer orders</li>
+                        </ul>
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={isDeleting}
+                            onClick={() => setProductToDelete(null)}
+                            className="text-zinc-400 hover:text-white"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={handleDeleteProduct}
+                            className="bg-red-600 hover:bg-red-700 text-white font-semibold gap-2"
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" /> Deleting...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="w-4 h-4" /> Delete Product
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
